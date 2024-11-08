@@ -151,6 +151,9 @@ nova_compute_virt_type: "qemu"
 
 【mission2】
 Keystone认证服务运维管理
+#使用自行搭建的OpenStack云平台，创建租户A和租户B，然后创建用户“userA”和
+#用户“userB”，用户密码都为“123456”。将用户A分配到租户A中，用户B分配到租户
+#B中，并赋予用户“member”角色。
 
 [root@controller kolla]#    source admin-openrc.sh 
 [root@controller kolla]# openstack project list
@@ -173,6 +176,9 @@ openstack role add --project B --user userB member
 
 2、
 Glance镜像服务运维管理
+#使用自行搭建的OpenStack云平台，基于提供的cirros-0.6.2-x86_64-disk.img 镜像文件
+#创建镜像名称为“cirros-0.6.2”、磁盘格式为QCOW2、最小启动内存为1024MB、最小启
+#动磁盘为10GB、镜像ID为“20241109”
 openstack image create \
   --file noble-server-cloudimg-amd64.img \
   --disk-format qcow2 \
@@ -184,11 +190,17 @@ openstack image create \
   #--id 20241109 \
 3、
 Neutron网络服务运维管理
+#使用自行搭建的OpenStack云平台，创建名称为“private-net”、网络类型为VXLAN
+#的内部网络，并创建相应的名称为“private-subnet”、网络地址为“10.10.10.0/24”的子网。
+
 openstack network create --provider-network-type vxlan private-net
 openstack subnet create --network private-net --subnet-range 10.10.10.0/24 --gateway 10.10.10.1 --dns-nameserver 8.8.8.8 private-subnet
 
 4、
 Nova计算服务运维管理
+#使用自行搭建的OpenStack云平台，创建实例类型名称为“cirros-flavor”，其中VCPU
+#数量为1、内存大小为1GB、根磁盘大小为10GB，完成实例类型创建后创建一台云主机
+#“GX-cirros”。
 步骤 1: 创建实例类型
 首先，创建一个名称为 cirros-flavor 的实例类型，其中 VCPU 数量为 1、内存大小为 1GB、根磁盘大小为 10GB。
 openstack flavor create --vcpus 1 --ram 1024 --disk 10 cirros-flavor
@@ -202,6 +214,11 @@ openstack server create --flavor cirros-flavor --image cirros-0.6.2 --nic net-id
 
 5、
 Heat编排服务运维管理
+#使用自行搭建的 OpenStack 云平台，在/root 目录下编写 Heat 模板文件
+#Heat-FlavorUltra.yaml 和 parameters 字段变量文件FlavorUltraEnv.yaml，通过使用 parameters
+#字段，在执行时将参数作为变量传入，达到参数可变的效果，要求执行yaml文件可以创
+#建云主机类型s6.xlarge.2，其中vcpu为2、ram为4096、ephemeral:为5、disk为20。
+
 vi Heat-FlavorUltra.yaml
 
 heat_template_version: 2016-10-14
@@ -264,6 +281,9 @@ openstack stack show FlavorUltraStack
 
 6、
 Ansible管理OpenStack云资源
+#在控制节点“/roo”目录下编写剧本“create_flavor.yml”，要求使用 Ansible 模块
+#“openstack.cloud.compute_flavor”定义创建的云主机类型名称为“tiny”、VCPU 数量为1、
+#内存为1024MB、根磁盘大小为10G、临时磁盘大小为10G、描述信息为“ansible-flavor”。
 vi /root/create_flavor.yml
 ---
 - name: Create a compute flavor using OpenStack
@@ -295,6 +315,14 @@ openstack --os-cloud kolla-admin flavor list
 
 7、
 MinIO对象存储
+#在提供的OpenStack 私有云平台上，使用镜像“openEuler-24.03-LTS”、实例类型
+#“2V-4G-40G”、网络“public-net”创建一台云主机，然后使用提供的软件包
+#“openEuler-MinIO.zip”完成 MinIO 对象存储服务的部署，具体要求如下：#
+#（1） MinIO服务认证的用户名需设置为“admin”，密码为“haobo@2025”。
+#（2）安装AWS命令行工具，编辑“/root/.aws”目录下的文件使其与MinIOServer进
+#行连接。
+#（3）使用AWS命令行工具创建存储桶“gxzg”。
+
 openstack server create --image openEuler-24.03-LTS --flavor 2V-4G-40G --nic net-id=public-net --security-group default --key-name your-keypair-name GX-openEuler
 
 ssh -i /path/to/your-private-key.pem root@<cloud-host-ip>
@@ -334,8 +362,15 @@ aws s3api create-bucket --bucket gxzg --endpoint-url http://localhost:9000
 aws s3 ls s3://gxzg --endpoint-url http://localhost:9000
 
 【mission3】
+
 1、调用OpenStackAPI自动化管理资源
 步骤 1: 创建项目目录结构
+#在控制节点“/root”目录下创建项目目录为“openstack/{utils,glance}”，进入openstack
+#目 录后，在 utils 目 录 下 编 写 openstack_connection.py 文 件 ， 定 义 函 数
+#“get_openstack_connection(cloud_name='kolla-admin-internal')”，用于设置 OpenStack SDK#
+#与 OpenStack 云平台进行连接，在 glance 目录下编写 create_image.py 文件，引入
+#openstack_logger.py 文件中的函数并定义函数create_image(name, filename)实现镜像的创建，
+#其中镜像名称为“cirros-openstacksdk”，使用的镜像文件为cirros-0.6.2-x86_64-disk.img。
 在 /root 目录下创建项目目录结构：
 mkdir -p /root/openstack/utils
 mkdir -p /root/openstack/glance
@@ -434,7 +469,12 @@ python /root/openstack/glance/create_image.py cirros-openstacksdk /path/to/cirro
 
 
 【K8s】
-1、
+#使用提供的用户名和密码登录OpenStack私有云平台，在当前租户下存在云主机
+#“Kubernetes-Master”和“Kubernetes-Worker”，分别作为搭建 Kubernetes 的 master 节点和
+#worker 节点。使用SecureCRT软件连接到这两台云主机，然后从提供的文件服务器上下载#
+#软件包“haobo-paas-openEuler24.03-v1.0.zip”，将其解压至/opt 目录，使用 rpm 命令安装软
+#件包“haobo-pass”。
+1、安装
 控制节点
  hostnamectl set-hostname master
  bash
@@ -445,15 +485,21 @@ python /root/openstack/glance/create_image.py cirros-openstacksdk /path/to/cirro
  unzip haobo-paas-openEuler24.03-v1.0.zip -d /opt/
 rpm -ivh /opt/haobo-paas/kubernetes-repo/packages/haobo-paas-1.0-1.x86_64.rpm
 
-2、
+2、部署
+#使用命令“set-deploy-environment”命令初始化集群节点，然后修改集群配置文件
+#/etc/haobo/kubernetes-v1.31.0.yaml”，设置 master 节点和 worker 节点的信息，修改完成以
+#后，使用“deploy-kubernetes-v1.30.1”命令部署集群。
 控制节点
+
 set-deploy-environment
 vi /etc/haobo/kubernetes-v1.31.0.yaml
   - {name: master, address: 192.168.2.145, internalAddress: 192.168.1.145, user: root, password: "qazWSX@1234"}
   - {name: worker, address: 192.168.2.146, internalAddress: 192.168.1.146, user: root, password: "qazWSX@1234"}
 deploy-kubernetes-v1.30.1
 
-3、
+3、部署KubeVirt服务
+#从提供的文件服务器上下载软件包haobo-kubevirt-v1.3.1.zip，将其解压至/opt目录后，
+#使用提供的相关离线文件部署KubeVirt服务
 cd /opt/haobo-paas/images
 gunzip -c master-images.tar.gz |ctr -n k8s.io  images import -
 工作节点
@@ -468,7 +514,121 @@ unzip haobo-kubevirt-v1.3.1.zip -d /opt/
 /opt/kubevirt-v1.3.1/bin/deploy-kubevirt-v1.3.1
 
 
-1、
-2、
-3、
+1、】Pod的DNS策
+#在haobo-skills 命名空间下，基于nginx:latest 镜像创建名为nginx01的Pod，设置允许
+#Pod忽略Kubernetes环境中的DNS设置，自定义DNS解析地址为180.184.1.1、119.29.29.29。
+主控
+vi nginx01-pod.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx01
+  namespace: haobo-skills
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+  dnsPolicy: "None"
+  dnsConfig:
+    nameservers:
+      - 180.184.1.1
+      - 119.29.29.29
+
+    ：wq
+kubectl create namespace haobo-skills
+kubectl apply -f nginx01-pod.yaml
+kubectl get pod nginx01 -n haobo-skills
+
+2、创建持久卷
+#在haobo-skills 命名空间下，创建名称为“pv01”的持久卷（PersistentVolume），指定
+#其存储容量为3Gi、访问模式设置为可被单个节点以读写方式挂载、回收策略设置为保留
+#数据、存储类使用local、指定本地持久卷的路径为“/opt/haobo/pv01”，并定义节点的亲和
+#性规则，指定此存储卷只能被worker节点使用。
+vi pv01-pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv01
+  namespace: haobo-skills
+spec:
+  capacity:
+    storage: 3Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local
+  local:
+    path: /opt/haobo/pv01
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - worker
+
+：wq
+kubectl apply -f pv01-pv.yaml
+kubectl get pv pv01 -n haobo-skills
+
+3、有状态工作负载与Secret结合
+#在haobo-skills 命名空间下，首先创建名为mysql-password 的 Secret，然后创建名为
+#mysql 的有状态工作负载。Secret 中包含一个名为 password 的字段，其值为字符串
+#Hbsz@2024”的 base64 编码。有状态工作负载应包含3个副本，模板中的容器镜像为
+#mysql:9.1，环境变量MYSQL_ROOT_PASSWORD应从名为mysql-password的Secret中获
+#取，密钥为password。
+echo -n 'Hbsz@2024' | base64
+vi mysql-password-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-password
+  namespace: haobo-skills
+type: Opaque
+data:
+  password: SGJzekAyMDI0Cg==  # 这是 "Hbsz@2024" 的 Base64 编码
+  :wq 
+
+kubectl apply -f mysql-password-secret.yaml
+
+vi mysql-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: haobo-skills
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:9.1
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-password
+              key: password
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+
+：wq 
+kubectl apply -f mysql-statefulset.yaml
 4、
